@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Vitamin ME · 멜론차트</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{ --bg:#fff; --panel:#f7f8fa; --line:#e6e8eb; --txt:#1a1d21; --dim:#8a9099;
+         --up:#e03131; --down:#1971c2; --gold:#e8a90c; }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--bg);color:var(--txt);
+       font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased}
+  header{padding:14px 16px 6px}
+  h1{font-size:16px;margin:0} h1 small{color:var(--dim);font-weight:400;font-size:11px;margin-left:6px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+         border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:10px}
+  .stat{background:var(--bg);padding:9px 10px}
+  .stat .k{font-size:10px;color:var(--dim);text-transform:uppercase}
+  .stat .v{font-size:19px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .stat .v.rank::before{content:"#";color:var(--dim);font-size:13px}
+  .stat .sub{font-size:9px;color:var(--dim);margin-top:1px}
+  .bar{display:flex;gap:8px;align-items:center;padding:10px 16px 4px;flex-wrap:wrap}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .toggle button{background:var(--panel);color:var(--dim);border:0;padding:6px 14px;font:inherit;font-size:12px}
+  .toggle button.on{background:#1a1d21;color:#fff}
+  .legend{font-size:11px;color:var(--dim)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin:0 4px 0 8px;vertical-align:middle}
+  #chart{width:100%;height:52vh;min-height:320px}
+  .foot{padding:8px 16px 20px;color:var(--dim);font-size:11px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>fromis_9 — Vitamin ME <small>멜론 TOP100 · 프리징 제외</small></h1>
+  <div class="stats" id="stats"></div>
+</header>
+<div class="bar">
+  <div class="toggle"><button id="bDay" class="on">일별</button><button id="bHour">시간별</button></div>
+  <span class="legend"><span class="dot" style="background:var(--up)"></span>양봉<span class="dot" style="background:var(--down)"></span>음봉 · 핀치 확대·드래그 이동</span>
+</div>
+<div id="chart"></div>
+<div class="foot" id="foot">로딩 중…</div>
+
+<script>
+const Y = r => 101 - r;
+const isFreeze = h => h>=1 && h<=7;
+const uHour = ts => Math.floor(Date.parse(ts.slice(0,16)+"Z")/1000);
+const el = document.getElementById("chart");
+let chart=null, MODE="day", DAILY=[], HOURLY=[], PEAK=null, CUR=null, LO=0;
+
+function build(data){
+  const pts = data.filter(p=>p.rank!=null && !isFreeze(+p.ts.slice(11,13))).sort((a,b)=>a.ts<b.ts?-1:1);
+  if(!pts.length){ document.getElementById("foot").textContent="데이터 없음"; return; }
+  PEAK = pts.reduce((a,b)=> b.rank<a.rank?b:a); CUR = pts[pts.length-1];
+  LO = Math.max(...pts.map(p=>p.rank));
+  HOURLY = pts.map((p,i)=>{ const o=i?pts[i-1].rank:p.rank, c=p.rank;
+    return {time:uHour(p.ts), open:Y(o), close:Y(c), high:Y(Math.min(o,c)), low:Y(Math.max(o,c))}; });
+  const byDay={}; for(const p of pts){ (byDay[p.ts.slice(0,10)]??=[]).push(p.rank); }
+  DAILY = Object.keys(byDay).sort().map(d=>{ const r=byDay[d];
+    return {time:d, open:Y(r[0]), close:Y(r[r.length-1]), high:Y(Math.min(...r)), low:Y(Math.max(...r))}; });
+  document.getElementById("stats").innerHTML=[
+    ["현재",CUR.rank,"rank",CUR.ts.slice(5,16).replace("T"," ")],
+    ["최고",PEAK.rank,"rank",PEAK.ts.slice(5,10)],
+    ["최저",LO,"rank","프리징 제외"],
+    ["변동폭",LO-PEAK.rank,"","최고~최저"],
+  ].map(([k,v,c,s])=>`<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div><div class="sub">${s}</div></div>`).join("");
+  document.getElementById("foot").innerHTML=
+    `발매 ${data[0].ts.slice(0,10)} · ${pts.length}봉(새벽1~7시 제외) · 매시 자동 갱신<br>`+
+    `한국식 캔들: <b style="color:var(--up)">빨강=순위 상승</b>, <b style="color:var(--down)">파랑=하락</b>. 핀치로 확대, 드래그로 이동.`;
+  render();
+}
+function render(){
+  if(chart) chart.remove();
+  chart = LightweightCharts.createChart(el, {
+    layout:{ background:{color:"#ffffff"}, textColor:"#1a1d21", fontFamily:"ui-monospace,monospace" },
+    grid:{ vertLines:{color:"#f0f1f3"}, horzLines:{color:"#f0f1f3"} },
+    rightPriceScale:{ borderColor:"#e6e8eb" },
+    timeScale:{ borderColor:"#e6e8eb", timeVisible:MODE==="hour", secondsVisible:false, minBarSpacing:0.6, rightOffset:3 },
+    crosshair:{ mode:1 }, localization:{ priceFormatter:v=>"#"+Math.round(101-v) },
+    handleScroll:true, handleScale:true,
+  });
+  const s = chart.addCandlestickSeries({ upColor:"#e03131", downColor:"#1971c2", borderVisible:false,
+    wickUpColor:"#e03131", wickDownColor:"#1971c2" });
+  s.setData(MODE==="hour"?HOURLY:DAILY);
+  s.setMarkers([{ time: MODE==="hour"?uHour(PEAK.ts):PEAK.ts.slice(0,10),
+                  position:"aboveBar", color:"#e8a90c", shape:"arrowDown", text:"최고 #"+PEAK.rank }]);
+  chart.timeScale().fitContent();
+}
+function setMode(m){ MODE=m;
+  document.getElementById("bDay").classList.toggle("on",m==="day");
+  document.getElementById("bHour").classList.toggle("on",m==="hour"); render(); }
+document.getElementById("bDay").onclick=()=>setMode("day");
+document.getElementById("bHour").onclick=()=>setMode("hour");
+window.addEventListener("resize",()=>{ if(chart) chart.applyOptions({width:el.clientWidth}); });
+
+fetch("./data/vitamin_me.json?"+Date.now()).then(r=>r.json()).then(build)
+  .catch(()=>{ document.getElementById("foot").textContent="data/vitamin_me.json 을 못 읽음"; });
+</script>
+</body>
+</html>
