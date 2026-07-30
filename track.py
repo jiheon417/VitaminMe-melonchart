@@ -37,7 +37,7 @@ def fetch_rank(song_no: str):
     return None
 
 def main():
-    now = datetime.now(KST)
+    now = datetime.now(KST).replace(minute=0, second=0, microsecond=0)  # 정각으로 정렬
     rank = fetch_rank(SONG_NO)
     point = {
         "ts": now.isoformat(timespec="minutes"),   # KST ISO
