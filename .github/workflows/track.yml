@@ -2,7 +2,7 @@ name: track-melon-chart
 
 on:
   schedule:
-    - cron: "*/15 * * * *"    # 15분마다 (GitHub throttle 감안 — 시간당 최소 1회 확보)
+    - cron: "*/5 * * * *"     # 5분마다 (GitHub 허용 최소 간격). throttle 대비 백업 트리거
   workflow_dispatch:          # 수동 실행 버튼
 
 permissions:

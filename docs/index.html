@@ -12,16 +12,15 @@
   body{background:var(--bg);color:var(--txt);
        font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased}
 
-  .hdr{display:flex;align-items:center;gap:12px;padding:14px 16px 6px}
-  .cover{width:54px;height:54px;border-radius:50%;object-fit:cover;flex:0 0 auto;
+  .hdr{display:flex;align-items:center;gap:12px;padding:14px 16px 8px}
+  .cover{width:56px;height:56px;border-radius:50%;object-fit:cover;flex:0 0 auto;
          box-shadow:0 1px 5px rgba(0,0,0,.18);background:#eaeaea}
   .hinfo{min-width:0}
-  .l1{display:flex;align-items:baseline;gap:8px}
-  .price{font-size:27px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
-  .song{font-size:15px;font-weight:600}
-  .l2{display:flex;align-items:center;gap:7px;margin-top:1px}
-  .delta{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .titleline{display:flex;align-items:baseline;gap:6px}
+  .song{font-size:16px;font-weight:600}
   .artist{font-size:12px;color:var(--dim)}
+  .price{display:block;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px;margin-top:3px;line-height:1.1}
+  .delta{display:block;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
 
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
          border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:8px}
@@ -44,8 +43,9 @@
 <div class="hdr">
   <img id="cover" class="cover" src="./cover.jpg" alt="" onerror="this.style.visibility='hidden'">
   <div class="hinfo">
-    <div class="l1"><span id="curRank" class="price">#--</span><span class="song">Vitamin ME</span></div>
-    <div class="l2"><span id="delta" class="delta"></span><span class="artist">fromis_9</span></div>
+    <div class="titleline"><span class="song">Vitamin ME</span></div>
+    <span id="curRank" class="price">--</span>
+    <span id="delta" class="delta"></span>
   </div>
 </div>
 <div class="stats" id="stats"></div>
@@ -67,7 +67,10 @@ function build(data){
   const pts = data.filter(p=>p.rank!=null && !isFreeze(+p.ts.slice(11,13))).sort((a,b)=>a.ts<b.ts?-1:1);
   if(!pts.length){ document.getElementById("foot").textContent="데이터 없음"; return; }
   RAW0=data; PEAK=pts.reduce((a,b)=>b.rank<a.rank?b:a); CUR=pts[pts.length-1];
-  LO=Math.max(...pts.map(p=>p.rank));
+  // 최근 24시간 이동창 (마지막 기록 시점 기준)
+  const lastMs = Date.parse(CUR.ts.slice(0,16)+"Z");
+  const win = pts.filter(p=> Date.parse(p.ts.slice(0,16)+"Z") >= lastMs - 864e5);
+  const hi24 = Math.min(...win.map(p=>p.rank)), lo24 = Math.max(...win.map(p=>p.rank));
   HOURLY = pts.map((p,i)=>{ const o=i?pts[i-1].rank:p.rank, c=p.rank;
     return {time:uHour(p.ts), open:Y(o), close:Y(c), high:Y(Math.min(o,c)), low:Y(Math.max(o,c))}; });
   const byDay={}; for(const p of pts){ (byDay[p.ts.slice(0,10)]??=[]).push(p.rank); }
@@ -75,7 +78,7 @@ function build(data){
     return {time:d, open:Y(r[0]), close:Y(r[r.length-1]), high:Y(Math.min(...r)), low:Y(Math.max(...r))}; });
 
   // 헤더: 현재 순위 + 등락(직전 기록 대비)
-  document.getElementById("curRank").textContent = "#"+CUR.rank;
+  document.getElementById("curRank").textContent = CUR.rank;
   const prev = pts.length>1 ? pts[pts.length-2].rank : CUR.rank, d = prev - CUR.rank;
   const de = document.getElementById("delta");
   if(d>0){ de.textContent="▲ "+d; de.style.color="var(--up)"; }
@@ -83,9 +86,9 @@ function build(data){
   else { de.textContent="– 0"; de.style.color="var(--dim)"; }
 
   document.getElementById("stats").innerHTML=[
-    ["최고",PEAK.rank,"rank",PEAK.ts.slice(5,10)],
-    ["최저",LO,"rank","프리징 제외"],
-    ["변동폭",LO-PEAK.rank,"","최고~최저"],
+    ["PEAK",PEAK.rank,"rank",PEAK.ts.slice(5,10)],
+    ["24h 최고",hi24,"rank","최근 24시간"],
+    ["24h 최저",lo24,"rank","최근 24시간"],
   ].map(([k,v,c,s])=>`<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div><div class="sub">${s}</div></div>`).join("");
   document.getElementById("foot").innerHTML=
     `멜론 TOP100 · 발매 ${data[0].ts.slice(0,10)} · ${pts.length}봉(새벽1~7시 제외) · 매시 자동 갱신<br>`+
@@ -116,7 +119,10 @@ document.getElementById("bDay").onclick=()=>setMode("day");
 document.getElementById("bHour").onclick=()=>setMode("hour");
 window.addEventListener("resize",()=>{ if(chart) chart.applyOptions({width:el.clientWidth}); });
 
-fetch("./data/vitamin_me.json?"+Date.now()).then(r=>r.json()).then(build).catch(()=>{document.getElementById("foot").textContent="data/vitamin_me.json 을 못 읽음";});
+const RAW_URL="https://raw.githubusercontent.com/jiheon417/VitaminMe-melonchart/main/docs/data/vitamin_me.json";
+fetch(RAW_URL+"?t="+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(build)
+  .catch(()=> fetch("./data/vitamin_me.json?"+Date.now()).then(r=>r.json()).then(build)
+  .catch(()=>{document.getElementById("foot").textContent="데이터를 못 읽음";}));
 </script>
 </body>
 </html>
