@@ -2,7 +2,7 @@ name: track-melon-chart
 
 on:
   schedule:
-    - cron: "0 * * * *"     # 매시 정각(UTC) = 매시 정각(KST). KST 1시=UTC 16시 자동 포함
+    - cron: "*/15 * * * *"    # 15분마다 (GitHub throttle 감안 — 시간당 최소 1회 확보)
   workflow_dispatch:          # 수동 실행 버튼
 
 permissions:
@@ -27,14 +27,18 @@ jobs:
           SONG_NO: "602540014"   # fromis_9 - Vitamin ME
         run: python track.py
 
-      - name: Commit if changed
+      - name: Commit & push (with retry)
         run: |
           git config user.name  "chart-bot"
           git config user.email "bot@users.noreply.github.com"
           git add docs/data/vitamin_me.json
           if git diff --staged --quiet; then
-            echo "변동 없음"
-          else
-            git commit -m "chart: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
+            echo "변동 없음"; exit 0
           fi
+          git commit -m "chart: $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3; do
+            git push && exit 0
+            echo "push 충돌 — 원격 반영 후 재시도 ($i)"
+            git pull --rebase origin main
+          done
+          echo "3회 재시도 실패"; exit 1
