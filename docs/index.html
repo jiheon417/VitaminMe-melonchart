@@ -123,8 +123,8 @@ document.getElementById("bHour").onclick=()=>setMode("hour");
 window.addEventListener("resize",()=>{ if(chart) chart.applyOptions({width:el.clientWidth}); });
 
 const RAW_URL="https://raw.githubusercontent.com/jiheon417/VitaminMe-melonchart/main/docs/data/vitamin_me.json";
-fetch(RAW_URL+"?t="+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(build)
-  .catch(()=> fetch("./data/vitamin_me.json?"+Date.now()).then(r=>r.json()).then(build)
+fetch("./data/vitamin_me.json?t="+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(build)
+  .catch(()=> fetch(RAW_URL+"?t="+Date.now()).then(r=>r.json()).then(build)
   .catch(()=>{document.getElementById("foot").textContent="데이터를 못 읽음";}));
 </script>
 </body>
