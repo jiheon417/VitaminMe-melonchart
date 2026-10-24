@@ -6318,5 +6318,10 @@
 "ts": "2026-10-24T22:00+09:00",
 "rank": null,
 "freeze": false
+},
+{
+"ts": "2026-10-25T01:00+09:00",
+"rank": null,
+"freeze": true
 }
 ]
