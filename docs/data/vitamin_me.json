@@ -6353,5 +6353,10 @@
 "ts": "2026-10-25T21:00+09:00",
 "rank": null,
 "freeze": false
+},
+{
+"ts": "2026-10-26T01:00+09:00",
+"rank": null,
+"freeze": true
 }
 ]
